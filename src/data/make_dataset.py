@@ -23,11 +23,11 @@ def main(project_dir):
 
     #Merge datasets on date
     all_trips['DATE'] = all_trips['Start Time'].dt.floor('d')
-    merged = pd.merge(df, weather, how='left', on='DATE')
+    merged = pd.merge(all_trips, NOAA, how='left', on='DATE')
     for feature, count in merged.count().iteritems():
         assert count == merged.shape[0], '{} is missing {} values.'.format(feature, merged.shape[0] - count)
 
-    final_path = os.path.join(project_dir, 'data/processed/final_dataset.csv')
+    final_path = os.path.join(project_dir, 'data/processed/final_dataset.csv.gz')
     merged.to_csv(final_path, index = False, compression='gzip')
 
 

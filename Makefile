@@ -1,4 +1,4 @@
-.PHONY: clean data models
+.PHONY: clean data s3_upload
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -6,12 +6,17 @@
 
 ## Make Dataset
 data:
-	python -m src/data/get_raw_data
-	python  -m src/data/make_dataset
+	python -m src.data.get_raw_data
+	python -m src.data.make_dataset
+	python -m src.data.make_train_test_splits
+
+s3_upload:
+	aws s3 cp data/processed/test.csv.gz s3://buj201-two-sigma-challenge/data/test.csv.gz
+	aws s3 cp data/processed/train.csv.gz s3://buj201-two-sigma-challenge/data/train.csv.gz
 
 ## Train models and dump to models/
 models:
-	python -m src/models/train_model
+	python -m src.models.train_model
 
 ## Delete all compiled Python files
 clean:

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pickle
+import os
 
 #Models
 from sklearn.linear_model import ElasticNet
@@ -42,46 +43,57 @@ def main(project_dir):
                             'WT01',
                             'WT08']
 
-    data_path = os.path.join(project_dir,'data/processed/final_dataset.csv'))
+    print 'Reading data...'
+    data_path = os.path.join(project_dir,'data/processed/train.csv.gz')
     df = pd.read_csv(data_path)
 
-    X = df.drop(['Trip Time','Start Time','TIME'], axis=1)
-    y = df['Trip Time']
+    X = df.drop(['Trip Duration'], axis=1)
+    y = df['Trip Duration']
 
-    enc = OneHotEncoder(categorical_features=categorical_features)
+    mask = np.zeros(X.shape[1])
+    for i in range(len(mask)):
+        if X.columns[i] in categorical_features:
+            mask[i] = 1
+        else:
+            mask[i] = 0
+    mask = mask.astype(bool)
+
+    print 'Sparsifying categorical features...'
+    enc = OneHotEncoder(categorical_features=mask)
     X = enc.fit_transform(X)
 
-    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size = 0.2)
-
     np.random.seed(1354)
-    validation = PredefinedSplit(np.random.choice([0,-1],X_train_val.shape[0],p=[0.8,0.2]))
+    validation = PredefinedSplit(np.random.choice([0,-1],X.shape[0],p=[0.8,0.2]))
+
+    print 'Running Elastic Net Grid Search...'
 
     EN_params = [{
-        'alpha':np.logspace(-6,2,5),
-        'l1_ratio':np.linspace(0,1,4)
+        'alpha':[10,1,0.1, 0.01,0.001],
+        'l1_ratio':[0.0, 0.5, 1.0]
     }]
 
-    EN_grid_search = GridSearchCV(ElasticNet(fit_intercept=True, normalize=True, selection='random', random_state=24351), EN_params, cv=validation)
-    EN_grid_search.fit(X_train_val, y_train_val)
+    EN_grid_search = GridSearchCV(ElasticNet(fit_intercept=True, normalize=True, selection='random', random_state=24351), EN_params, cv=validation, n_jobs=-1, verbose=2)
+    EN_grid_search.fit(X, y)
+
+    print 'Pickling and saving Elastic Net models...'
 
     with open(os.path.join(project_dir,'models/elastic_net.pkl'), 'wb') as outfile:
         pickle.dump(EN_grid_search, outfile)
+
+    print 'Running GBR Grid Search...'
 
     GBR_params = [{
         'learning_rate':[0.01,0.1],
         'max_depth':[2,4,6]
     }]
 
-    GBR_grid_search = GridSearchCV(GradientBoostingRegressor(subsample=0.8,verbose=2, random_state=24351, n_estimators=400), GBR_params, cv=validation)
-    GBR_grid_search.fit(X_train_val, y_train_val)
+    GBR_grid_search = GridSearchCV(GradientBoostingRegressor(subsample=0.8,verbose=2, random_state=24351, n_estimators=400), GBR_params, cv=validation, n_jobs=-1, sverbose=2)
+    GBR_grid_search.fit(X, y)
+
+    print 'Pickling and saving GBR models...'
 
     with open(os.path.join(project_dir,'models/GBR.pkl'), 'wb') as outfile:
         pickle.dump(EN_grid_search, outfile)
-
-def map_cat_feature_to_target_range(series):
-    vals = series.unique()
-    mapping = dict(zip(vals,range(len(vals))))
-    return series.apply(lambda x: mapping[x])
 
 if __name__ == '__main__':
     project_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)

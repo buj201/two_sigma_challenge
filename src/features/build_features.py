@@ -33,10 +33,15 @@ def format_monthly_data(df):
     df['Age'] = df['Start Time'].dt.year - df['Birth Year']
     df.drop('Birth Year',axis=1, inplace=True)
 
+    #Note it is still possible that 'Age' has missing values- specifically
+    #if "Start Station ID" is missing age after groupby/agg.
+    #In that case just fill with global mean
+
+    df['Age'] = df['Age'].fillna(np.mean(df['Age']))
+
     #Make users dummies
-    users = pd.get_dummies(df['User Type'], dummy_na=True)
-    users.columns = list(users.columns[0:2]) + ['User Type Missing']
-    df = df.join(users)
+    user_dict = {'Customer':0, 'Subscriber':1, np.nan: 2}
+    df['User Type'] = df['User Type'].apply(lambda x: user_dict[x])
 
     df.drop(['Start Station Latitude', 'Start Station Longitude', 'User Type'], axis=1, inplace=True)
 
@@ -61,6 +66,7 @@ def format_NOAA_data(project_dir):
     df = df.fillna({'WT01':0, 'WT08':0})
     for col in df.columns:
         df[col] = get_forward_back_avg(df[col])
+    df.reset_index(inplace=True)
     return df
 
 def get_forward_back_avg(series):
